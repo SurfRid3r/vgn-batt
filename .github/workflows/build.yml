@@ -1,0 +1,40 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build (universal arm64 + x86_64)
+        run: make CFLAGS="-O2 -Wall -arch arm64 -arch x86_64"
+
+      - name: Verify architecture
+        run: |
+          lipo -info vgnbatt
+          file vgnbatt probe | cat
+
+      - name: Smoke test (expect exit 3 = no receiver on CI)
+        run: |
+          set +e
+          ./vgnbatt
+          rc=$?
+          if [ $rc -ne 3 ]; then
+            echo "::error::unexpected exit code $rc (expected 3: device not found)"
+            exit 1
+          fi
+          echo "exit code 3 as expected (no receiver attached on CI runner)"
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: vgnbatt-universal
+          path: |
+            vgnbatt
+            probe
+          if-no-files-found: error
